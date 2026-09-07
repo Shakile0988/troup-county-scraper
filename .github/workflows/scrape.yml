@@ -37,6 +37,16 @@ jobs:
           TAX_YEAR: ${{ github.event.inputs.tax_year }}
         run: node scraper.js
 
+      - name: Upload debug files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-files
+          path: |
+            debug.png
+            debug.html
+          if-no-files-found: ignore
+
       - name: Send result to n8n webhook
         run: |
           curl -X POST "${{ github.event.inputs.webhook_url }}" \
