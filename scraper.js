@@ -67,32 +67,32 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
     await taxYearSelect.selectOption(TAX_YEAR);
     await page.waitForTimeout(500);
 
-    // Debug: sob button er text print kori
-    const allButtons = await page.locator('button').allTextContents();
-    console.log('All buttons found on page:', JSON.stringify(allButtons));
-
-    // Step 4: SEARCH button - flexible matching
-    const searchButton = page.locator('button', { hasText: /search/i }).first();
+    // Step 4: SEARCH button - eta <input type="submit"> , <button> na
+    const searchButton = page.locator('input[type="submit"][value="SEARCH"]:visible').first();
     await searchButton.waitFor({ state: 'visible', timeout: 15000 });
     await searchButton.click();
     await page.waitForTimeout(3000);
 
     console.log('Search clicked, current URL:', page.url());
 
-    // Step 5: View button
+    // Debug: result table koyta row asche dekhi
+    const rowCount = await page.locator('table tbody tr').count();
+    console.log('Result table row count:', rowCount);
+
+    // Step 5: View button (first result row)
     const viewButton = page.locator('button, a').filter({ hasText: /view/i }).first();
     await viewButton.waitFor({ state: 'visible', timeout: 15000 });
     await viewButton.click();
     await page.waitForTimeout(2000);
 
-    // Step 6: Popup close
+    // Step 6: Popup close if present
     const closeBtn = page.locator('button:has-text("Close")');
     if (await closeBtn.count() > 0) {
       await closeBtn.first().click();
       await page.waitForTimeout(1000);
     }
 
-    // Step 7: Wait for API response
+    // Step 7: Wait for bill-details API response
     let waited = 0;
     while (!billDetailsResponse && waited < 15000) {
       await page.waitForTimeout(500);
