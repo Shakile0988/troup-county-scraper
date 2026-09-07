@@ -1,8 +1,11 @@
-name: Scrape Troup County
+name: Scrape County Tax Data
 
 on:
   workflow_dispatch:
     inputs:
+      county:
+        description: 'County name (e.g. troup, athens-clarke)'
+        required: true
       property_id:
         description: 'Property ID'
         required: true
@@ -33,6 +36,7 @@ jobs:
 
       - name: Run scraper
         env:
+          COUNTY: ${{ github.event.inputs.county }}
           PROPERTY_ID: ${{ github.event.inputs.property_id }}
           TAX_YEAR: ${{ github.event.inputs.tax_year }}
         run: node scraper.js
