@@ -14,9 +14,14 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
   const page = await context.newPage();
 
   let billDetailsResponse = null;
+  const allApiCalls = [];
 
   page.on('response', async (response) => {
-    if (response.url().includes('/api/bill-details') && response.request().method() === 'POST') {
+    const url = response.url();
+    if (url.includes('/api/')) {
+      allApiCalls.push(`${response.request().method()} ${url} -> ${response.status()}`);
+    }
+    if (url.includes('/api/bill-details') && response.request().method() === 'POST') {
       try {
         billDetailsResponse = await response.json();
       } catch (e) {
@@ -32,16 +37,12 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
     await page.waitForTimeout(2000);
 
     const selects = await page.locator('select').all();
-    console.log(`Found ${selects.length} select dropdowns`);
-
     let searchBySelect = null;
     let taxYearSelect = null;
 
     for (const sel of selects) {
       const optionsText = await sel.locator('option').allTextContents();
       const optionsJoined = optionsText.join(',');
-      console.log('Select options:', optionsJoined);
-
       if (optionsJoined.includes('Property Id') && optionsJoined.includes('Owner Name')) {
         searchBySelect = sel;
       } else if (optionsText.some(t => /^\d{4}$/.test(t.trim()))) {
@@ -50,7 +51,7 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
     }
 
     if (!searchBySelect || !taxYearSelect) {
-      throw new Error(`Could not identify selects. searchBySelect=${!!searchBySelect}, taxYearSelect=${!!taxYearSelect}`);
+      throw new Error('Could not identify selects');
     }
 
     await searchBySelect.selectOption({ label: 'Property Id' });
@@ -68,18 +69,20 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
     await searchButton.click();
     await page.waitForTimeout(3000);
 
-    console.log('Search clicked, current URL:', page.url());
+    console.log('After search, URL:', page.url());
 
-    const rowCount = await page.locator('table tbody tr').count();
-    console.log('Result table row count:', rowCount);
-
-    // View button - eta <input type="button" value="View">
     const viewButton = page.locator('input[type="button"][value="View"]:visible').first();
     await viewButton.waitFor({ state: 'visible', timeout: 15000 });
-    await viewButton.click();
-    await page.waitForTimeout(2000);
 
-    // Popup close - button othoba input dutai check kori
+    // Click er por navigation hote pare, tai Promise.all diye dhori
+    await Promise.all([
+      page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {}),
+      viewButton.click()
+    ]);
+
+    await page.waitForTimeout(3000);
+    console.log('After view click, URL:', page.url());
+
     const closeBtn = page.locator('button:has-text("Close"), input[value*="Close" i]');
     if (await closeBtn.count() > 0) {
       await closeBtn.first().click();
@@ -92,16 +95,21 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
       waited += 500;
     }
 
+    console.log('All API calls seen:', JSON.stringify(allApiCalls, null, 2));
+
   } catch (err) {
     console.error('Scraping error:', err.message);
-    await page.screenshot({ path: 'debug.png', fullPage: true }).catch((e) => console.log('screenshot failed:', e.message));
-    const html = await page.content().catch(() => '');
-    fs.writeFileSync('debug.html', html);
+    console.log('All API calls seen (on error):', JSON.stringify(allApiCalls, null, 2));
   }
+
+  // Screenshot/HTML sob shomoy nei, success hok ba fail hok
+  await page.screenshot({ path: 'debug.png', fullPage: true }).catch((e) => console.log('screenshot failed:', e.message));
+  const html = await page.content().catch(() => '');
+  fs.writeFileSync('debug.html', html);
 
   await browser.close();
 
-  const output = billDetailsResponse || { error: 'No data captured' };
+  const output = billDetailsResponse || { error: 'No data captured', apiCallsSeen: allApiCalls };
   fs.writeFileSync('output.json', JSON.stringify(output, null, 2));
   console.log(JSON.stringify(output, null, 2));
 })();
