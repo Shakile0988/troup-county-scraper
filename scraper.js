@@ -21,7 +21,8 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
     if (url.includes('/api/')) {
       allApiCalls.push(`${response.request().method()} ${url} -> ${response.status()}`);
     }
-    if (url.includes('/api/bill-details') && response.request().method() === 'POST') {
+    // Exact match kori - "endsWith" diye, jate "bill-details/pending-transaction-check" match na kore
+    if (url.endsWith('/api/bill-details') && response.request().method() === 'POST') {
       try {
         billDetailsResponse = await response.json();
       } catch (e) {
@@ -74,7 +75,6 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
     const viewButton = page.locator('input[type="button"][value="View"]:visible').first();
     await viewButton.waitFor({ state: 'visible', timeout: 15000 });
 
-    // Click er por navigation hote pare, tai Promise.all diye dhori
     await Promise.all([
       page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {}),
       viewButton.click()
@@ -102,7 +102,6 @@ const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERT
     console.log('All API calls seen (on error):', JSON.stringify(allApiCalls, null, 2));
   }
 
-  // Screenshot/HTML sob shomoy nei, success hok ba fail hok
   await page.screenshot({ path: 'debug.png', fullPage: true }).catch((e) => console.log('screenshot failed:', e.message));
   const html = await page.content().catch(() => '');
   fs.writeFileSync('debug.html', html);
