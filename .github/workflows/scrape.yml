@@ -1,0 +1,44 @@
+name: Scrape Troup County
+
+on:
+  workflow_dispatch:
+    inputs:
+      property_id:
+        description: 'Property ID'
+        required: true
+      tax_year:
+        description: 'Tax Year'
+        required: true
+      webhook_url:
+        description: 'n8n Webhook URL to send result'
+        required: true
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run scraper
+        env:
+          PROPERTY_ID: ${{ github.event.inputs.property_id }}
+          TAX_YEAR: ${{ github.event.inputs.tax_year }}
+        run: node scraper.js
+
+      - name: Send result to n8n webhook
+        run: |
+          curl -X POST "${{ github.event.inputs.webhook_url }}" \
+            -H "Content-Type: application/json" \
+            -d @output.json
