@@ -1,8 +1,13 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 
-const PROPERTY_ID = process.env.PROPERTY_ID || '0231 000 047';
+const PROPERTY_ID_RAW = process.env.PROPERTY_ID || '0231 000 047';
 const TAX_YEAR = process.env.TAX_YEAR || '2020';
+
+// Jodi property id te space na thake, format kore dei
+const PROPERTY_ID = /^\d+$/.test(PROPERTY_ID_RAW.replace(/\s/g, '')) && !PROPERTY_ID_RAW.includes(' ')
+  ? PROPERTY_ID_RAW.replace(/^(\d{4})(\d{3})(\d+)$/, '$1 $2 $3')
+  : PROPERTY_ID_RAW;
 
 (async () => {
   const browser = await chromium.launch();
@@ -22,10 +27,11 @@ const TAX_YEAR = process.env.TAX_YEAR || '2020';
   });
 
   try {
+    console.log('Using PROPERTY_ID:', PROPERTY_ID, '| TAX_YEAR:', TAX_YEAR);
+
     await page.goto('https://pay.troupcountytax.com/details', { waitUntil: 'networkidle', timeout: 60000 });
     await page.waitForTimeout(2000);
 
-    // Sob select dropdown khuje ber kora, tarpor prottekta check kora kon ta ki
     const selects = await page.locator('select').all();
     console.log(`Found ${selects.length} select dropdowns`);
 
@@ -40,7 +46,6 @@ const TAX_YEAR = process.env.TAX_YEAR || '2020';
       if (optionsJoined.includes('Property Id') && optionsJoined.includes('Owner Name')) {
         searchBySelect = sel;
       } else if (optionsText.some(t => /^\d{4}$/.test(t.trim()))) {
-        // Options e 4-digit year thakle eta Tax Year select
         taxYearSelect = sel;
       }
     }
@@ -62,12 +67,22 @@ const TAX_YEAR = process.env.TAX_YEAR || '2020';
     await taxYearSelect.selectOption(TAX_YEAR);
     await page.waitForTimeout(500);
 
-    // Step 4: SEARCH button
-    await page.locator('button:has-text("SEARCH")').click();
+    // Debug: sob button er text print kori
+    const allButtons = await page.locator('button').allTextContents();
+    console.log('All buttons found on page:', JSON.stringify(allButtons));
+
+    // Step 4: SEARCH button - flexible matching
+    const searchButton = page.locator('button', { hasText: /search/i }).first();
+    await searchButton.waitFor({ state: 'visible', timeout: 15000 });
+    await searchButton.click();
     await page.waitForTimeout(3000);
 
+    console.log('Search clicked, current URL:', page.url());
+
     // Step 5: View button
-    await page.locator('button:has-text("View"), a:has-text("View")').first().click();
+    const viewButton = page.locator('button, a').filter({ hasText: /view/i }).first();
+    await viewButton.waitFor({ state: 'visible', timeout: 15000 });
+    await viewButton.click();
     await page.waitForTimeout(2000);
 
     // Step 6: Popup close
@@ -86,7 +101,7 @@ const TAX_YEAR = process.env.TAX_YEAR || '2020';
 
   } catch (err) {
     console.error('Scraping error:', err.message);
-    await page.screenshot({ path: 'debug.png', fullPage: true }).catch(() => {});
+    await page.screenshot({ path: 'debug.png', fullPage: true }).catch((e) => console.log('screenshot failed:', e.message));
     const html = await page.content().catch(() => '');
     fs.writeFileSync('debug.html', html);
   }
